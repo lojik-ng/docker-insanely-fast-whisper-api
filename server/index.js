@@ -1,58 +1,81 @@
+// Import necessary modules
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const formidable = require('formidable');
+const { Formidable } = require('formidable');
 const { exec } = require('child_process');
 const keys = require('./keys.json');
 const { DateTime } = require('luxon');
 
+// Initialize express app
 const app = express();
 const port = 2901;
-const uploadDir = path.join(__dirname, 'uploads');
+const uploadDir = path.join('/shared', 'tempUploads');
+const model = fs.readFileSync(path.join('/shared', 'server', 'model.txt'), 'utf8').trim();
 
-// Middleware to parse JSON and urlencoded form data
+// Middleware to parse JSON and urlencoded form datasss
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Route to handle form submission
-// Route for handling TTS requests
+/**
+ * Handle form submission
+ * @param {Object} req - The request object
+ * @param {Object} res - The response object
+ */
 app.post('/transcribe', async (req, res) => {
-    let { apiKey } = req.body;
+    const form = new Formidable({ multiples: false, uploadDir });
 
-    if (!authenticate(apiKey)) {
-        res.json({ status: 'error', message: 'Invalid API key.' });
-    }
-
-    const form = formidable({ multiples: false, uploadDir });
-
-    const user = keys.find(key => key.key === apiKey);
-    if (user) {
-        log(`${user.name} called.`);
-    }
-
-
+    // Parse form data
     form.parse(req, async (err, fields, files) => {
         if (err) {
             log(err);
             return res.send({ status: 'error', message: 'Error uploading audio file.' });
         }
 
+        const apiKey = fields.apiKey[0];
+
+        // Authenticate API key
+        if (!authenticate(apiKey)) {
+            return res.json({ status: 'error', message: 'Invalid API key: ' + apiKey + '' });
+        }
+
         // Get the uploaded audio file details
-        const audioFile = files.audio;
-        const filename = audioFile.name;
-        const fullFilePath = path.join(uploadDir, filename);
+        const audioFile = files.audio[0];
+        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + audioFile.originalFilename);
 
-        const output = await transcribe(fullFilePath);
-        res.json({ status: 'success', output: output });
-        fs.unlinkSync(fullFilePath);
+        try {
+            // Check if source file exists
+            if (!fs.existsSync(audioFile.filepath)) {
+                log(`Source file does not exist: ${audioFile.filepath}`);
+                return res.json({ status: 'error', message: 'Source file does not exist.' });
+            }
+
+            // Check if destination directory exists, create if not
+            const destinationDir = path.dirname(fullFilePath);
+            if (!fs.existsSync(destinationDir)) {
+                log(`Destination directory does not exist, creating: ${destinationDir}`);
+                fs.mkdirSync(destinationDir, { recursive: true });
+            }
+
+            fs.renameSync(audioFile.filepath, fullFilePath);
+            const output = await transcribe(fullFilePath);
+            res.json({ status: 'success', message: fs.readFileSync(output, 'utf8') });
+            fs.unlinkSync(output);
+            fs.unlinkSync(fullFilePath);
+        } catch (error) {
+            log(error);
+            res.json({ status: 'error', message: 'An error occurred' });
+            fs.unlinkSync(audioFile.filepath);
+        }
     });
-
 });
 
+
+// Serve index.html
 app.get('/', (req, res) => {
-    // send index.html
     res.sendFile('/shared/server/index.html');
-})
+});
+
 
 // Start the server
 app.listen(port, () => {
@@ -60,33 +83,63 @@ app.listen(port, () => {
     log(`Server is running on http://localhost:${port}`);
 });
 
+/**
+ * Authenticate API key
+ * @param {string} apiKey - The API key to authenticate
+ * @returns {boolean} - True if API key is valid, false otherwise
+ */
 function authenticate(apiKey) {
     if (!apiKey) return false;
-    // get array of keys from keys.json
-    // check if apiKey is valid
     for (const key of keys) {
         if (key.key === apiKey) {
+            log(`${key.name} called API.`);
             return true;
         }
     }
     return false;
 }
 
-
-
+/**
+ * Log messages
+ * @param {string|Object} msg - The message to log
+ */
 function log(msg) {
     const today = DateTime.now().setZone("Africa/Lagos").toISODate();
-    fs.appendFileSync(`/shared/logs/${today}.log`, `${new Date().toLocaleString()}: ${JSON.stringify(msg)}\n`);
+    // if message is not string, convert it to string
+    if (typeof msg !== 'string') msg = JSON.stringify(msg);
+    fs.appendFileSync(`/shared/logs/${today}.log`, `${new Date().toLocaleString()}: ${msg}\n`);
 }
 
+
+
+/**
+ * Transcribe audio file
+ * @param {string} filePath - The path to the audio file
+ * @returns {Promise<string>} - The path to the transcript file
+ */
 function transcribe(filePath) {
+    const output = '/shared/tempUploads/' + uuid() + '.json';
+    const cmd = `insanely-fast-whisper --file-name ${filePath} --model-name ${model} --batch-size 24 --transcript-path ${output}`;
+
     return new Promise((resolve, reject) => {
-        exec(`insanely-fast-whisper --file-name "${filePath}" --flash True `, (error, stdout, stderr) => {
+        exec(cmd, (error, stdout, stderr) => {
             if (error) {
                 reject(error);
             } else {
-                resolve(stdout.trim()); // Trim any extra whitespace
+                resolve(output);
             }
         });
     });
 }
+
+/**
+ * Generate a UUID
+ * @returns {string} - The generated UUID
+ */
+function uuid() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+

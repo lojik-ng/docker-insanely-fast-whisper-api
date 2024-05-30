@@ -1,11 +1,8 @@
 # docker-insanely-fast-whisper-api
 
-docker API with Auth for insanely fast whisper
+Docker container for insanely-fast-whisper with API, UI and multi-user Auth for [insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper)
 
-## Work in progress
-
-Docker container for insanely-fast-whisper with API and UI.
-Seeing that most AI projects require some python knowledge to deploy, i decided to use NodeJS/Javascript to create a simple to use AI Speech To Text API for whisper AI.
+API for whisper AI that supports multiple user authentication. Mostly implemented with Nodejs.
 
 ## Installation
 
@@ -25,12 +22,28 @@ You can now access the ui at `http://localhost:2901/`.
 
 ### Endpoints/API
 
-- Send a POST request to `http://localhost:2902/transcribe` with `{audio: blob or url to audio, apiKey: string}`
+- Send a POST request to `http://localhost:2901/transcribe` with `{audio: file, apiKey: string}`
 - Check server/index.html for example usage of the endpoints
 
 ### API Keys/Authentication
 
 - Edit server/keys.json in the cloned repository anytime to add or remove API keys.
+
+### Models
+
+Edit server/model.txt to the model you prefer. You can also use distil models.
+
+- openai/whisper-tiny
+- openai/whisper-tiny.en
+- openai/whisper-base
+- openai/whisper-base.en
+- openai/whisper-small
+- openai/whisper-small.en
+- openai/whisper-medium
+- openai/whisper-medium.en
+- openai/whisper-large
+- openai/whisper-large-v3
+- etc
 
 ### Logging
 
@@ -45,7 +58,7 @@ You can now access the ui at `http://localhost:2901/`.
 - Authentication: You can add as many users and ban users just by editing the `server/keys.json` file.
 - Logging: It logs all user requests, errors etc.
 
-## Credits
+## Todo
 
-- This software uses libraries from the [FFmpeg](http://ffmpeg.org) project under the [LGPLv2.1](http://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
-- This software uses [insanely-fast-whisper](https://github.com/Vaibhavs10/insanely-fast-whisper)
+- Speed up inference with Flash attention 2.
+- Create translation API

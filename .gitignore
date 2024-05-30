@@ -125,3 +125,12 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+*.wav
+**.wav
+models/*/*
+*.log
+*.mp3
+**.mp3
+**keys.json
+server/keys.json

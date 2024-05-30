@@ -15,7 +15,7 @@ WORKDIR /shared
 COPY entrypoint.sh /usr/local/bin/
 
 # Make entrypoint script executable
-RUN chmod +x /usr/local/bin/entrypoint.sh
+RUN sudo chmod +x /usr/local/bin/entrypoint.sh
 
 # Set the default command to run the entrypoint script
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
