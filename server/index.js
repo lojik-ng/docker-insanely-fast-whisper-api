@@ -7,6 +7,8 @@ const { exec } = require('child_process');
 const keys = require('./keys.json');
 const { DateTime } = require('luxon');
 
+
+
 // Initialize express app
 const app = express();
 const port = 2901;
@@ -41,7 +43,8 @@ app.post('/transcribe', async (req, res) => {
 
         // Get the uploaded audio file details
         const audioFile = files.audio[0];
-        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + audioFile.originalFilename);
+        // get the file extension
+        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + audioFile.originalFilename.split('.').pop());
 
         try {
             // Check if source file exists
