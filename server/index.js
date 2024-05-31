@@ -44,7 +44,7 @@ app.post('/transcribe', async (req, res) => {
         // Get the uploaded audio file details
         const audioFile = files.audio[0];
         // get the file extension
-        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + audioFile.originalFilename.split('.').pop());
+        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + '.' + audioFile.originalFilename.split('.').pop());
 
         try {
             // Check if source file exists
