@@ -132,5 +132,7 @@ models/*/*
 *.log
 *.mp3
 **.mp3
+*.ogg
+**.ogg
 **keys.json
 server/keys.json
