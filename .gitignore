@@ -129,7 +129,7 @@ dist
 *.wav
 **.wav
 models/*/*
-*.log
+logs/*.log
 *.mp3
 **.mp3
 *.ogg
