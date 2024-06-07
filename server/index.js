@@ -117,11 +117,16 @@ app.get('/', (req, res) => {
 
 
 // Start the server
-app.listen(port, () => {
+const myServer = app.listen(port, () => {
     console.log(`Server is running on http://localhost:${port}`);
     log(`Server is running on http://localhost:${port}`);
 });
-
+myServer.keepAliveTimeout = 60 * 60 * 1000;
+myServer.headersTimeout = 61 * 60 * 1000;
+myServer.on('connection', function (socket) {
+    console.log("A new connection was made by a client.");
+    socket.setTimeout(60 * 60 * 1000);
+});
 /**
  * Authenticate API key
  * @param {string} apiKey - The API key to authenticate
