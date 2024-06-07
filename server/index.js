@@ -41,21 +41,30 @@ app.post('/transcribe', async (req, res) => {
         }
 
         const apiKey = fields.apiKey[0];
-        let jobID;
-        if (fields.jobID) jobID = fields.jobId[0];
-
         // Authenticate API key
         if (!authenticate(apiKey)) {
             return res.status(200).json({ status: 'error', message: 'Invalid API key: ' + apiKey + '' });
         }
 
+        let jobID;
+        let jobCode;
+
+        if (fields.jobID && fields.jobID[0]) jobID = fields.jobID[0];
+
+        let sendResponse = true;
 
         if (jobID) {
-            jobID = apiKey + jobID;
-            const oldFile = '/shared/tempUploads/' + jobID + '.json';
+            jobCode = jobID + '___' + apiKey;
+            const oldFile = '/shared/tempUploads/' + jobCode + '.json';
             if (fs.existsSync(oldFile)) {
+                log(`Background transcription sent for job ID: ${jobID}`);
                 res.status(200).json({ status: 'success', message: fs.readFileSync(oldFile, 'utf8') });
-            } else res.status(200).json({ status: 'error', message: 'File received. Check back in a short while for transcript.' });
+                return;
+            } else {
+                log(`Transcription started in the background for job ID: ${jobID}`);
+                res.status(200).json({ status: 'success', message: 'Transcription started in the background.' });
+                sendResponse = false
+            }
         }
 
         // Get the uploaded audio file details
@@ -67,7 +76,7 @@ app.post('/transcribe', async (req, res) => {
         // Check if source file exists
         if (!fs.existsSync(src)) {
             log(`Source file does not exist: ${src}`);
-            return res.status(200).json({ status: 'error', message: 'Source file does not exist.' });
+            if (sendResponse) return res.status(200).json({ status: 'error', message: 'Source file does not exist.' });
         }
 
         let fullFilePath = path.join('/shared', 'tempUploads', uuid() + '.' + ext);
@@ -90,13 +99,13 @@ app.post('/transcribe', async (req, res) => {
             }
 
 
-            const output = await transcribe(fullFilePath, jobID);
-            res.status(200).json({ status: 'success', message: fs.readFileSync(output, 'utf8') });
+            const output = await transcribe(fullFilePath, jobCode);
+            if (sendResponse) res.status(200).json({ status: 'success', message: fs.readFileSync(output, 'utf8') });
             // fs.unlinkSync(output);
             fs.unlinkSync(fullFilePath);
         } catch (error) {
             log(error);
-            res.status(200).json({ status: 'error', message: 'An error occurred' });
+            if (sendResponse) res.status(200).json({ status: 'error', message: 'An error occurred' });
             fs.unlinkSync(audioFile.filepath);
         }
     });
@@ -161,10 +170,10 @@ function log(msg) {
  * @param {string} filePath - The path to the audio file
  * @returns {Promise<string>} - The path to the transcript file
  */
-function transcribe(filePath, jobID) {
+function transcribe(filePath, jobCode) {
     let output;
-    if (jobID) {
-        output = '/shared/tempUploads/' + jobID + '.json';
+    if (jobCode) {
+        output = '/shared/tempUploads/' + jobCode + '.json';
     } else output = '/shared/tempUploads/' + uuid() + '.json';
     const cmd = `insanely-fast-whisper --file-name ${filePath} --model-name ${model} --batch-size 24 --transcript-path ${output}`;
 
