@@ -55,7 +55,7 @@ app.post('/transcribe', async (req, res) => {
             const oldFile = '/shared/tempUploads/' + jobID + '.json';
             if (fs.existsSync(oldFile)) {
                 res.status(200).json({ status: 'success', message: fs.readFileSync(oldFile, 'utf8') });
-            }
+            } else res.status(200).json({ status: 'error', message: 'File received. Check back in a short while for transcript.' });
         }
 
         // Get the uploaded audio file details
