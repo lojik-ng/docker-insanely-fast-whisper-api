@@ -7,7 +7,7 @@ API for whisper AI that supports multiple user authentication. Mostly implemente
 ## Installation
 
 ```sh
-git clone git@github.com:lojik-ng/docker-insanely-fast-whisper-api.git
+git clone https://github.com/lojik-ng/docker-insanely-fast-whisper-api.git
 cd docker-insanely-fast-whisper-api
 mv server/keys.sample.json server/keys.json
 docker build -t docker-insanely-fast-whisper-api .
