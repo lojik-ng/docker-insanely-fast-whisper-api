@@ -6,8 +6,9 @@ const { Formidable } = require('formidable');
 const { exec } = require('child_process');
 const keys = require('./keys.json');
 const { DateTime } = require('luxon');
-
-
+const cors = require('cors');
+ffmpeg = require('fluent-ffmpeg');
+const crypto = require('crypto');
 
 // Initialize express app
 const app = express();
@@ -15,10 +16,15 @@ const port = 2901;
 const uploadDir = path.join('/shared', 'tempUploads');
 const model = fs.readFileSync(path.join('/shared', 'server', 'model.txt'), 'utf8').trim();
 
+const corsOptions = {
+    origin: ['*'], // Replace with your allowed origins
+    credentials: true, // Allow cookies for authenticated requests (optional)
+};
+
+app.use(cors(corsOptions));
 // Middleware to parse JSON and urlencoded form datasss
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
 /**
  * Handle form submission
  * @param {Object} req - The request object
@@ -31,27 +37,50 @@ app.post('/transcribe', async (req, res) => {
     form.parse(req, async (err, fields, files) => {
         if (err) {
             log(err);
-            return res.send({ status: 'error', message: 'Error uploading audio file.' });
+            return res.status(200).send({ status: 'error', message: 'Error uploading audio file.' });
         }
 
         const apiKey = fields.apiKey[0];
+        let jobID;
+        if (fields.jobID) jobID = fields.jobId[0];
 
         // Authenticate API key
         if (!authenticate(apiKey)) {
-            return res.json({ status: 'error', message: 'Invalid API key: ' + apiKey + '' });
+            return res.status(200).json({ status: 'error', message: 'Invalid API key: ' + apiKey + '' });
+        }
+
+
+        if (jobID) {
+            jobID = apiKey + jobID;
+            const oldFile = '/shared/tempUploads/' + jobID + '.json';
+            if (fs.existsSync(oldFile)) {
+                res.status(200).json({ status: 'success', message: fs.readFileSync(oldFile, 'utf8') });
+            }
         }
 
         // Get the uploaded audio file details
         const audioFile = files.audio[0];
         // get the file extension
-        const fullFilePath = path.join('/shared', 'tempUploads', uuid() + '.' + audioFile.originalFilename.split('.').pop());
+        let ext = audioFile.originalFilename.split('.').pop();
+        let src = audioFile.filepath;
+
+        // Check if source file exists
+        if (!fs.existsSync(src)) {
+            log(`Source file does not exist: ${src}`);
+            return res.status(200).json({ status: 'error', message: 'Source file does not exist.' });
+        }
+
+        let fullFilePath = path.join('/shared', 'tempUploads', uuid() + '.' + ext);
+        if (ext != 'mp3' && ext != 'wav') {
+            src = await convertToMp3(audioFile.filepath, '/shared/tempUploads/' + uuid() + '.mp3');
+            ext = 'mp3';
+            fullFilePath = src;
+            fs.unlinkSync(audioFile.filepath);
+        } else {
+            fs.renameSync(src, fullFilePath);
+        }
 
         try {
-            // Check if source file exists
-            if (!fs.existsSync(audioFile.filepath)) {
-                log(`Source file does not exist: ${audioFile.filepath}`);
-                return res.json({ status: 'error', message: 'Source file does not exist.' });
-            }
 
             // Check if destination directory exists, create if not
             const destinationDir = path.dirname(fullFilePath);
@@ -60,23 +89,30 @@ app.post('/transcribe', async (req, res) => {
                 fs.mkdirSync(destinationDir, { recursive: true });
             }
 
-            fs.renameSync(audioFile.filepath, fullFilePath);
-            const output = await transcribe(fullFilePath);
-            res.json({ status: 'success', message: fs.readFileSync(output, 'utf8') });
-            fs.unlinkSync(output);
+
+            const output = await transcribe(fullFilePath, jobID);
+            res.status(200).json({ status: 'success', message: fs.readFileSync(output, 'utf8') });
+            // fs.unlinkSync(output);
             fs.unlinkSync(fullFilePath);
         } catch (error) {
             log(error);
-            res.json({ status: 'error', message: 'An error occurred' });
+            res.status(200).json({ status: 'error', message: 'An error occurred' });
             fs.unlinkSync(audioFile.filepath);
         }
     });
 });
 
 
+app.post('/test', async (req, res) => {
+    const form = new Formidable({ multiples: false, uploadDir });
+    return res.status(200).send({ status: 'success', message: 'Server is working.' });
+
+});
+
+
 // Serve index.html
 app.get('/', (req, res) => {
-    res.sendFile('/shared/server/index.html');
+    res.status(200).sendFile('/shared/server/index.html');
 });
 
 
@@ -120,8 +156,11 @@ function log(msg) {
  * @param {string} filePath - The path to the audio file
  * @returns {Promise<string>} - The path to the transcript file
  */
-function transcribe(filePath) {
-    const output = '/shared/tempUploads/' + uuid() + '.json';
+function transcribe(filePath, jobID) {
+    let output;
+    if (jobID) {
+        output = '/shared/tempUploads/' + jobID + '.json';
+    } else output = '/shared/tempUploads/' + uuid() + '.json';
     const cmd = `insanely-fast-whisper --file-name ${filePath} --model-name ${model} --batch-size 24 --transcript-path ${output}`;
 
     return new Promise((resolve, reject) => {
@@ -145,4 +184,26 @@ function uuid() {
         return v.toString(16);
     });
 }
+
+async function convertToMp3(inputFilePath, outputFilePath) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputFilePath)
+            .toFormat('mp3')
+            .on('end', () => {
+                console.log('Conversion finished.');
+                resolve(outputFilePath);
+            })
+            .on('error', (err) => {
+                console.error('Error during conversion:', err);
+                reject(err);
+            })
+            .save(outputFilePath);
+    });
+}
+
+// function to convert string to md5
+function encode(str) {
+    return crypto.createHash('md5').update(str).digest('hex');
+}
+
 

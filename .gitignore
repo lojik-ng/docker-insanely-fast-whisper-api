@@ -136,3 +136,4 @@ models/*/*
 **.ogg
 **keys.json
 server/keys.json
+tempUploads/*.json
